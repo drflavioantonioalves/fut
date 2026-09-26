@@ -5,11 +5,42 @@ datasource db {
   provider = "postgresql"
   url = env("DATABASE_URL")
 }
-enum UserRole { MASTER CHAMPIONSHIP_ADMIN }
-enum ChampionshipStatus { DRAFT SCHEDULED LIVE FINISHED ARCHIVED PENDING_DELETION DELETED }
-enum MatchStatus { SCHEDULED FIRST_HALF HALF_TIME SECOND_HALF FINISHED }
-enum EventType { GOAL YELLOW BLUE RED SUBSTITUTION SYSTEM }
-enum RosterRole { STARTER RESERVE }
+enum UserRole {
+  MASTER
+  CHAMPIONSHIP_ADMIN
+}
+
+enum ChampionshipStatus {
+  DRAFT
+  SCHEDULED
+  LIVE
+  FINISHED
+  ARCHIVED
+  PENDING_DELETION
+  DELETED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  FIRST_HALF
+  HALF_TIME
+  SECOND_HALF
+  FINISHED
+}
+
+enum EventType {
+  GOAL
+  YELLOW
+  BLUE
+  RED
+  SUBSTITUTION
+  SYSTEM
+}
+
+enum RosterRole {
+  STARTER
+  RESERVE
+}
 
 model User {
   id String @id @default(cuid())

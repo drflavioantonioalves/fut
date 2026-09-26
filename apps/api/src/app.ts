@@ -56,23 +56,9 @@ export function createApp(config: AppConfig, prisma: PrismaClient) {
     response.json(data);
   });
 
-  app.post('/api/matches/:id/status', async (request, response) => {
-    const status = request.body?.status;
-    if (typeof status !== 'string' || !Object.values(MatchStatus).includes(status as MatchStatus)) {
-      return response.status(400).json({ error: 'Status inválido' });
-    }
-
-    const data = await prisma.match.update({
-      where: { id: request.params.id },
-      data: {
-        status: status as MatchStatus,
-        startedAt: status === MatchStatus.FIRST_HALF ? new Date() : undefined,
-        secondHalfAt: status === MatchStatus.SECOND_HALF ? new Date() : undefined,
-        finishedAt: status === MatchStatus.FINISHED ? new Date() : undefined,
-      },
-    });
-    request.app.locals.io?.to(`match:${data.id}`).emit('match:status', data);
-    response.json(data);
+  // Mutations remain disabled until authentication and authorization exist.
+  app.post('/api/matches/:id/status', (_request, response) => {
+    response.status(503).json({ error: 'Operação indisponível até a implementação de autenticação.' });
   });
 
   const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {

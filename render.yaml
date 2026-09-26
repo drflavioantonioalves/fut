@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: futliga-api
+    runtime: node
+    rootDir: apps/api
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: futliga-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://SEU-FRONTEND.onrender.com
+  - type: web
+    name: futliga-web
+    runtime: static
+    rootDir: apps/web
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+databases:
+  - name: futliga-db
+    databaseName: futliga
+    user: futliga

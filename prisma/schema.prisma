@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum UserRole { MASTER CHAMPIONSHIP_ADMIN }
+enum ChampionshipStatus { DRAFT SCHEDULED LIVE FINISHED ARCHIVED PENDING_DELETION DELETED }
+enum MatchStatus { SCHEDULED FIRST_HALF HALF_TIME SECOND_HALF FINISHED }
+enum EventType { GOAL YELLOW BLUE RED SUBSTITUTION SYSTEM }
+enum RosterRole { STARTER RESERVE }
+
+model User {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  passwordHash String
+  role UserRole
+  clubId String?
+  club Club? @relation(fields:[clubId], references:[id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Club {
+  id String @id @default(cuid())
+  name String
+  users User[]
+  championships Championship[]
+  teams Team[]
+  createdAt DateTime @default(now())
+}
+model Championship {
+  id String @id @default(cuid())
+  name String
+  clubId String
+  club Club @relation(fields:[clubId], references:[id])
+  status ChampionshipStatus @default(DRAFT)
+  startDate DateTime?
+  endDate DateTime?
+  phases Phase[]
+  teams Team[]
+  matches Match[]
+  awards Award[]
+  sponsors Sponsor[]
+  comments Comment[]
+  votes Vote[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Phase {
+  id String @id @default(cuid())
+  name String
+  type String
+  order Int
+  championshipId String
+  championship Championship @relation(fields:[championshipId], references:[id])
+  matches Match[]
+}
+model Team {
+  id String @id @default(cuid())
+  name String
+  championshipId String?
+  championship Championship? @relation(fields:[championshipId], references:[id])
+  clubId String?
+  club Club? @relation(fields:[clubId], references:[id])
+  players Player[]
+  homeMatches Match[] @relation("HomeTeam")
+  awayMatches Match[] @relation("AwayTeam")
+}
+model Player {
+  id String @id @default(cuid())
+  name String
+  shirtNumber Int?
+  position String?
+  teamId String
+  team Team @relation(fields:[teamId], references:[id])
+}
+model Match {
+  id String @id @default(cuid())
+  championshipId String
+  championship Championship @relation(fields:[championshipId], references:[id])
+  phaseId String?
+  phase Phase? @relation(fields:[phaseId], references:[id])
+  homeTeamId String
+  homeTeam Team @relation("HomeTeam", fields:[homeTeamId], references:[id])
+  awayTeamId String
+  awayTeam Team @relation("AwayTeam", fields:[awayTeamId], references:[id])
+  venue String?
+  scheduledAt DateTime?
+  status MatchStatus @default(SCHEDULED)
+  homeScore Int @default(0)
+  awayScore Int @default(0)
+  startedAt DateTime?
+  secondHalfAt DateTime?
+  finishedAt DateTime?
+  events MatchEvent[]
+  roster MatchRoster[]
+  createdAt DateTime @default(now())
+}
+model MatchRoster {
+  id String @id @default(cuid())
+  matchId String
+  playerId String?
+  playerName String
+  shirtNumber Int?
+  position String?
+  role RosterRole
+  manual Boolean @default(false)
+  match Match @relation(fields:[matchId], references:[id])
+}
+model MatchEvent {
+  id String @id @default(cuid())
+  matchId String
+  type EventType
+  teamId String?
+  playerId String?
+  playerName String?
+  minute Int
+  detail String?
+  createdAt DateTime @default(now())
+  match Match @relation(fields:[matchId], references:[id])
+}
+model Award {
+  id String @id @default(cuid())
+  championshipId String
+  championship Championship @relation(fields:[championshipId], references:[id])
+  name String
+  icon String?
+  winnerType String
+  winnerName String?
+  teamName String?
+  statistic String?
+  description String?
+  displayOrder Int @default(0)
+  visible Boolean @default(true)
+}
+model Sponsor {
+  id String @id @default(cuid())
+  championshipId String?
+  championship Championship? @relation(fields:[championshipId], references:[id])
+  name String
+  title String?
+  description String?
+  imageUrl String?
+  websiteUrl String?
+  active Boolean @default(true)
+}
+model Comment {
+  id String @id @default(cuid())
+  championshipId String
+  championship Championship @relation(fields:[championshipId], references:[id])
+  nickname String
+  text String
+  hidden Boolean @default(false)
+  createdAt DateTime @default(now())
+}
+model Vote {
+  id String @id @default(cuid())
+  championshipId String
+  championship Championship @relation(fields:[championshipId], references:[id])
+  spectatorId String
+  playerId String
+  createdAt DateTime @default(now())
+  @@unique([championshipId, spectatorId])
+}

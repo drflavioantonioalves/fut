@@ -38,3 +38,23 @@ test('GET /health returns process health without querying the database', async (
     version: 'test-build',
   });
 });
+
+
+test('POST /api/matches/:id/status stays unavailable until authentication exists', async (context) => {
+  let updateCalls = 0;
+  const prisma = { match: { update: async () => { updateCalls += 1; } } };
+  const app = createApp(loadConfig({ NODE_ENV: 'test' }), prisma);
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  context.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/matches/any-match/status`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'FINISHED' }),
+  });
+  assert.equal(response.status, 503);
+  assert.equal(updateCalls, 0);
+});

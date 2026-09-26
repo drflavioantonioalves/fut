@@ -80,6 +80,10 @@ O `preDeployCommand` do Render exige um plano que ofereça esse recurso. Confirm
 
 Antes de usar um banco de dados existente, faça backup e determine se ele está vazio, se já possui o schema ou se precisa de baseline. A migration inicial foi gerada a partir do schema atual e não foi executada contra banco de produção.
 
+## Dependência com advisory de segurança
+
+O lockfile desta etapa resolve `deepmerge-ts@7.1.5` por `prisma@6.19.3 → @prisma/config@6.19.3 → deepmerge-ts@7.1.5`. Essa versão está afetada por CVE-2026-40345 (GHSA-ggr8-5vv4-36mx), corrigido em `deepmerge-ts@8.0.0`. O Prisma 6.19.3 fixa a dependência transitiva; não foi aplicado override para a major 8 porque sua compatibilidade com esta versão do Prisma ainda não foi validada neste projeto. O advisory permanece pendente de resolução e deve ser reavaliado antes de uso em produção ou do fechamento da auditoria pré-merge. O caminho é usado pela configuração/ferramentas Prisma, não por uma rota de requisição da API; a exposição depende de processar uma configuração recursiva controlada por agente não confiável.
+
 ## Limites desta etapa
 
 As rotas atuais de campeonatos e partidas foram preservadas. Ainda não há autenticação, autorização, isolamento multi-tenant, operação administrativa funcional, relógio de partida, fluxo completo de eventos, moderação, votação, gestão comercial, retenção ou exclusão de dados. Não publique a aplicação para uso administrativo até que as etapas de segurança e produto sejam implementadas e revisadas.

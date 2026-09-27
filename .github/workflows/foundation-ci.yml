@@ -1,0 +1,50 @@
+name: Foundation CI
+
+on:
+  push:
+    branches:
+      - codex/stage1-foundation
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    name: Foundation validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://futliga:futliga@localhost:5432/futliga?schema=public
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Validate Prisma schema
+        run: npm run db:validate
+
+      - name: Generate Prisma Client
+        run: npm run db:generate
+
+      - name: Build API and frontend
+        run: npm run build
+
+      - name: Audit production dependencies (reported separately)
+        if: always()
+        run: npm audit --omit=dev
+        continue-on-error: true

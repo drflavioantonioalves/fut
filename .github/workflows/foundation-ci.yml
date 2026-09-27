@@ -16,6 +16,8 @@ jobs:
     name: Foundation validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://futliga:futliga@localhost:5432/futliga?schema=public
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -43,5 +45,6 @@ jobs:
         run: npm run build
 
       - name: Audit production dependencies (reported separately)
+        if: always()
         run: npm audit --omit=dev
         continue-on-error: true

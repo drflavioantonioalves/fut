@@ -29,7 +29,7 @@ export function createApp(config: AppConfig, prisma: PrismaClient) {
   app.get('/api/championships', async (_request, response) => {
     const data = await prisma.championship.findMany({
       include: {
-        club: true,
+        organization: true,
         phases: true,
         teams: true,
         matches: { include: { homeTeam: true, awayTeam: true, events: true, roster: true } },
@@ -38,7 +38,7 @@ export function createApp(config: AppConfig, prisma: PrismaClient) {
       },
       orderBy: { createdAt: 'desc' },
     });
-    response.json(data);
+    response.json(data.map(({ organization, ...championship }) => ({ ...championship, club: organization })));
   });
 
   app.get('/api/matches/:id', async (request, response) => {

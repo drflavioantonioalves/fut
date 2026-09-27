@@ -1,6 +1,6 @@
 # FutLiga
 
-Plataforma em construção para campeonatos de futebol. Esta alteração corresponde à **Etapa 1: fundação técnica**. Ela prepara o monorepo, PostgreSQL, Prisma, migrations, seed de desenvolvimento, health check e configuração inicial de hospedagem. O sistema **não está production-ready**; autenticação, autorização e isolamento entre clubes serão tratados na Etapa 2.
+Plataforma em construção para campeonatos de futebol. Esta alteração corresponde à **Etapa 2.1: fundação de identidade e multi-tenancy**, construída sobre a fundação técnica da Etapa 1. Ela prepara usuários, organizações, papéis e relações de tenant no Prisma. O sistema **não está production-ready**; autenticação e autorização efetiva ainda não foram implementadas e serão tratadas nas próximas etapas.
 
 ## Arquitetura atual
 
@@ -56,9 +56,9 @@ npm run db:seed
 npm run db:deploy
 ```
 
-`db:seed` cria ou atualiza um clube, um campeonato, duas equipes, jogadores, uma fase, uma partida e um usuário Master demonstrativo com dados fictícios. O seed falha quando `NODE_ENV=production`. Esse usuário não tem uma credencial de login; autenticação ainda não está implementada.
+`db:seed` cria ou atualiza uma organização fictícia, um campeonato, duas equipes, jogadores, uma fase, uma partida e um usuário Master demonstrativo sem credencial utilizável. O seed falha quando `NODE_ENV=production`.
 
-Não rode a migration inicial automaticamente em um banco já populado ou com schema criado manualmente sem antes revisar e planejar o baseline. A migration não apaga dados, mas pode falhar se objetos com os mesmos nomes já existirem. O Blueprint abaixo cria uma nova instância PostgreSQL; bancos existentes exigem procedimento de adoção revisado antes de habilitar migrations de deploy.
+A migration da Etapa 2.1 renomeia `Club` para `Organization` e converte relações existentes sem apagar registros. Ela recusa dados legados inconsistentes em vez de migrá-los silenciosamente. Não foi executada contra PostgreSQL nesta etapa; revise e faça backup antes de aplicar em um banco existente.
 
 ## Desenvolvimento, testes e build
 
@@ -72,18 +72,26 @@ npm run build
 
 O health check `GET /health` verifica a saúde do processo sem consultar o banco e retorna estado, serviço, ambiente e versão. Ele não substitui um monitoramento de conectividade do PostgreSQL.
 
+## Identidade e multi-tenancy
+
+`Organization` é o tenant principal do FutLiga. Cada `Championship` pertence a exatamente uma organização; equipes e partidas usam chaves estrangeiras compostas para impedir que uma equipe ou fase de outro campeonato seja associada por engano. `Team.organizationId` permanece como relação direta porque a equipe já podia existir sem campeonato e porque a chave composta garante que essa organização corresponda à do campeonato.
+
+`MASTER_ADMIN` é um papel global armazenado em `User.role`. `CHAMPIONSHIP_ADMIN` fica em `OrganizationMember.role`, sempre associado a uma organização. `OrganizationMember` permite que um usuário participe de várias organizações e impede associações duplicadas. O slug identifica a organização em URLs futuras, mas não concede acesso.
+
+Esta etapa prepara somente o modelo de dados: não implementa login, sessão, middleware ou autorização de endpoints. Conhecer IDs, slugs ou URLs não concede acesso. A autorização efetiva e o isolamento em consultas da API ficam para as etapas seguintes. O modelo não torna o sistema seguro para produção por si só.
+
 ## Render
 
 O `render.yaml` configura uma API Node, um site estático e um banco PostgreSQL. O blueprint declara planos pagos de entrada para API e PostgreSQL; revise dimensionamento e custo antes de provisionar. A API gera o cliente durante o build, executa `prisma migrate deploy` no `preDeployCommand` e expõe `/health` como health check. As origens e URL do frontend usam os domínios Render definidos pelo nome dos serviços; atualize `CORS_ORIGIN` e `VITE_API_URL` se usar domínios próprios.
 
 O `preDeployCommand` do Render exige um plano que ofereça esse recurso. Confirme a disponibilidade no plano e no workspace antes de aplicar o Blueprint. Em planos sem pre-deploy, aplique `npm run db:deploy` por um job/release command compatível antes de iniciar a nova versão; não substitua isso por `prisma migrate dev` em produção.
 
-Antes de usar um banco de dados existente, faça backup e determine se ele está vazio, se já possui o schema ou se precisa de baseline. A migration inicial foi gerada a partir do schema atual e não foi executada contra banco de produção.
+Antes de usar um banco existente, faça backup e determine se ele está vazio, se já possui o schema ou se precisa de baseline. A migration da Etapa 2.1 está versionada, mas não foi executada contra PostgreSQL real nesta etapa.
 
-## Dependência com advisory de segurança
+## Dependências
 
-O lockfile desta etapa resolve `deepmerge-ts@7.1.5` por `prisma@6.19.3 → @prisma/config@6.19.3 → deepmerge-ts@7.1.5`. Essa versão está afetada por CVE-2026-40345 (GHSA-ggr8-5vv4-36mx), corrigido em `deepmerge-ts@8.0.0`. O Prisma 6.19.3 fixa a dependência transitiva; não foi aplicado override para a major 8 porque sua compatibilidade com esta versão do Prisma ainda não foi validada neste projeto. O advisory permanece pendente de resolução e deve ser reavaliado antes de uso em produção ou do fechamento da auditoria pré-merge. O caminho é usado pela configuração/ferramentas Prisma, não por uma rota de requisição da API; a exposição depende de processar uma configuração recursiva controlada por agente não confiável.
+O lockfile desta base mantém `Prisma 6.19.3` e resolve `deepmerge-ts@8.0.2` pelo override já validado da Etapa 1.5.
 
 ## Limites desta etapa
 
-As rotas atuais de campeonatos e partidas foram preservadas. Ainda não há autenticação, autorização, isolamento multi-tenant, operação administrativa funcional, relógio de partida, fluxo completo de eventos, moderação, votação, gestão comercial, retenção ou exclusão de dados. Não publique a aplicação para uso administrativo até que as etapas de segurança e produto sejam implementadas e revisadas.
+As rotas atuais de campeonatos e partidas foram preservadas. Ainda não há autenticação, autorização efetiva dos endpoints, operação administrativa funcional, relógio de partida, fluxo completo de eventos, moderação, votação, gestão comercial, retenção ou exclusão de dados. O schema prepara o isolamento entre tenants, mas as consultas e políticas efetivas da API ainda precisam ser implementadas e revisadas. Não publique a aplicação para uso administrativo até que as etapas de segurança e produto sejam implementadas e revisadas.

@@ -1,12 +1,17 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
-enum UserRole {
-  MASTER
+
+enum PlatformRole {
+  MASTER_ADMIN
+}
+
+enum OrganizationMemberRole {
   CHAMPIONSHIP_ADMIN
 }
 
@@ -43,155 +48,212 @@ enum RosterRole {
 }
 
 model User {
-  id String @id @default(cuid())
-  name String
-  email String @unique
-  passwordHash String
-  role UserRole
-  clubId String?
-  club Club? @relation(fields:[clubId], references:[id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                      String               @id @default(cuid())
+  name                    String
+  email                   String               @unique
+  passwordHash            String
+  role                    PlatformRole?
+  active                  Boolean              @default(true)
+  organizationMemberships OrganizationMember[]
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
 }
-model Club {
-  id String @id @default(cuid())
-  name String
-  users User[]
+
+model Organization {
+  id            String               @id @default(cuid())
+  name          String
+  slug          String               @unique
+  active        Boolean              @default(true)
+  members       OrganizationMember[]
   championships Championship[]
-  teams Team[]
-  createdAt DateTime @default(now())
+  teams         Team[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 }
+
+model OrganizationMember {
+  id             String                 @id @default(cuid())
+  userId         String
+  organizationId String
+  role           OrganizationMemberRole
+  active         Boolean                @default(true)
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
 model Championship {
-  id String @id @default(cuid())
-  name String
-  clubId String
-  club Club @relation(fields:[clubId], references:[id])
-  status ChampionshipStatus @default(DRAFT)
-  startDate DateTime?
-  endDate DateTime?
-  phases Phase[]
-  teams Team[]
-  matches Match[]
-  awards Award[]
-  sponsors Sponsor[]
-  comments Comment[]
-  votes Vote[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String             @id @default(cuid())
+  name           String
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  status         ChampionshipStatus @default(DRAFT)
+  startDate      DateTime?
+  endDate        DateTime?
+  phases         Phase[]
+  teams          Team[]
+  matches        Match[]
+  awards         Award[]
+  sponsors       Sponsor[]
+  comments       Comment[]
+  votes          Vote[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  // Required as the target of Team's composite foreign key, which enforces
+  // that a team cannot point at a championship from another organization.
+  @@unique([id, organizationId])
+  @@index([organizationId])
 }
+
 model Phase {
-  id String @id @default(cuid())
-  name String
-  type String
-  order Int
+  id             String       @id @default(cuid())
+  name           String
+  type           String
+  order          Int
   championshipId String
-  championship Championship @relation(fields:[championshipId], references:[id])
-  matches Match[]
+  championship   Championship @relation(fields: [championshipId], references: [id], onDelete: Restrict)
+  matches        Match[]
+
+  @@unique([id, championshipId])
+  @@index([championshipId])
 }
+
 model Team {
-  id String @id @default(cuid())
-  name String
+  id             String        @id @default(cuid())
+  name           String
   championshipId String?
-  championship Championship? @relation(fields:[championshipId], references:[id])
-  clubId String?
-  club Club? @relation(fields:[clubId], references:[id])
-  players Player[]
-  homeMatches Match[] @relation("HomeTeam")
-  awayMatches Match[] @relation("AwayTeam")
+  organizationId String?
+  championship   Championship? @relation(fields: [championshipId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  players        Player[]
+  homeMatches    Match[]       @relation("HomeTeam")
+  awayMatches    Match[]       @relation("AwayTeam")
+
+  // These composite keys let Match and Championship enforce tenant ownership
+  // with foreign keys instead of relying on application-side checks.
+  @@unique([id, championshipId])
+  @@index([championshipId])
+  @@index([organizationId])
 }
+
 model Player {
-  id String @id @default(cuid())
-  name String
+  id          String  @id @default(cuid())
+  name        String
   shirtNumber Int?
-  position String?
-  teamId String
-  team Team @relation(fields:[teamId], references:[id])
+  position    String?
+  teamId      String
+  team        Team    @relation(fields: [teamId], references: [id], onDelete: Restrict)
 }
+
 model Match {
-  id String @id @default(cuid())
+  id             String        @id @default(cuid())
   championshipId String
-  championship Championship @relation(fields:[championshipId], references:[id])
-  phaseId String?
-  phase Phase? @relation(fields:[phaseId], references:[id])
-  homeTeamId String
-  homeTeam Team @relation("HomeTeam", fields:[homeTeamId], references:[id])
-  awayTeamId String
-  awayTeam Team @relation("AwayTeam", fields:[awayTeamId], references:[id])
-  venue String?
-  scheduledAt DateTime?
-  status MatchStatus @default(SCHEDULED)
-  homeScore Int @default(0)
-  awayScore Int @default(0)
-  startedAt DateTime?
-  secondHalfAt DateTime?
-  finishedAt DateTime?
-  events MatchEvent[]
-  roster MatchRoster[]
-  createdAt DateTime @default(now())
+  championship   Championship  @relation(fields: [championshipId], references: [id], onDelete: Restrict)
+  phaseId        String?
+  phase          Phase?        @relation(fields: [phaseId, championshipId], references: [id, championshipId], onDelete: NoAction)
+  homeTeamId     String
+  homeTeam       Team          @relation("HomeTeam", fields: [homeTeamId, championshipId], references: [id, championshipId], onDelete: Restrict)
+  awayTeamId     String
+  awayTeam       Team          @relation("AwayTeam", fields: [awayTeamId, championshipId], references: [id, championshipId], onDelete: Restrict)
+  venue          String?
+  scheduledAt    DateTime?
+  status         MatchStatus   @default(SCHEDULED)
+  homeScore      Int           @default(0)
+  awayScore      Int           @default(0)
+  startedAt      DateTime?
+  secondHalfAt   DateTime?
+  finishedAt     DateTime?
+  events         MatchEvent[]
+  roster         MatchRoster[]
+  createdAt      DateTime      @default(now())
+
+  @@index([championshipId])
 }
+
 model MatchRoster {
-  id String @id @default(cuid())
-  matchId String
-  playerId String?
-  playerName String
+  id          String     @id @default(cuid())
+  matchId     String
+  playerId    String?
+  playerName  String
   shirtNumber Int?
-  position String?
-  role RosterRole
-  manual Boolean @default(false)
-  match Match @relation(fields:[matchId], references:[id])
+  position    String?
+  role        RosterRole
+  manual      Boolean    @default(false)
+  match       Match      @relation(fields: [matchId], references: [id], onDelete: Restrict)
+
+  @@index([matchId])
 }
+
 model MatchEvent {
-  id String @id @default(cuid())
-  matchId String
-  type EventType
-  teamId String?
-  playerId String?
+  id         String    @id @default(cuid())
+  matchId    String
+  type       EventType
+  teamId     String?
+  playerId   String?
   playerName String?
-  minute Int
-  detail String?
-  createdAt DateTime @default(now())
-  match Match @relation(fields:[matchId], references:[id])
+  minute     Int
+  detail     String?
+  createdAt  DateTime  @default(now())
+  match      Match     @relation(fields: [matchId], references: [id], onDelete: Restrict)
+
+  @@index([matchId])
 }
+
 model Award {
-  id String @id @default(cuid())
+  id             String       @id @default(cuid())
   championshipId String
-  championship Championship @relation(fields:[championshipId], references:[id])
-  name String
-  icon String?
-  winnerType String
-  winnerName String?
-  teamName String?
-  statistic String?
-  description String?
-  displayOrder Int @default(0)
-  visible Boolean @default(true)
+  championship   Championship @relation(fields: [championshipId], references: [id], onDelete: Restrict)
+  name           String
+  icon           String?
+  winnerType     String
+  winnerName     String?
+  teamName       String?
+  statistic      String?
+  description    String?
+  displayOrder   Int          @default(0)
+  visible        Boolean      @default(true)
+
+  @@index([championshipId])
 }
+
 model Sponsor {
-  id String @id @default(cuid())
+  id             String        @id @default(cuid())
   championshipId String?
-  championship Championship? @relation(fields:[championshipId], references:[id])
-  name String
-  title String?
-  description String?
-  imageUrl String?
-  websiteUrl String?
-  active Boolean @default(true)
+  championship   Championship? @relation(fields: [championshipId], references: [id], onDelete: SetNull)
+  name           String
+  title          String?
+  description    String?
+  imageUrl       String?
+  websiteUrl     String?
+  active         Boolean       @default(true)
+
+  @@index([championshipId])
 }
+
 model Comment {
-  id String @id @default(cuid())
+  id             String       @id @default(cuid())
   championshipId String
-  championship Championship @relation(fields:[championshipId], references:[id])
-  nickname String
-  text String
-  hidden Boolean @default(false)
-  createdAt DateTime @default(now())
+  championship   Championship @relation(fields: [championshipId], references: [id], onDelete: Restrict)
+  nickname       String
+  text           String
+  hidden         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([championshipId])
 }
+
 model Vote {
-  id String @id @default(cuid())
+  id             String       @id @default(cuid())
   championshipId String
-  championship Championship @relation(fields:[championshipId], references:[id])
-  spectatorId String
-  playerId String
-  createdAt DateTime @default(now())
+  championship   Championship @relation(fields: [championshipId], references: [id], onDelete: Restrict)
+  spectatorId    String
+  playerId       String
+  createdAt      DateTime     @default(now())
+
   @@unique([championshipId, spectatorId])
 }

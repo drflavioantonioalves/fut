@@ -12,6 +12,10 @@ const migration = readFileSync(
   join(root, 'prisma', 'migrations', '20260927000000_identity_tenancy', 'migration.sql'),
   'utf8',
 );
+const authMigration = readFileSync(
+  join(root, 'prisma', 'migrations', '20260928000000_auth_sessions', 'migration.sql'),
+  'utf8',
+);
 
 function model(name) {
   const match = schema.match(new RegExp(`model ${name}\\s*\\{([\\s\\S]*?)\\n\\}`));
@@ -32,7 +36,7 @@ test('Organization is the tenant and Championship requires exactly one Organizat
   assert.match(model('Organization'), /slug\s+String\s+@unique/);
   assert.match(model('Organization'), /active\s+Boolean\s+@default\(true\)/);
   assert.match(model('Organization'), /championships\s+Championship\[\]/);
-  assert.match(model('Championship'), /organizationId\s+String\n/);
+  assert.match(model('Championship'), /organizationId\s+String\r?\n/);
   assert.match(model('Championship'), /organization\s+Organization\s+@relation/);
   assert.match(model('Championship'), /@@index\(\[organizationId\]\)/);
 });
@@ -91,4 +95,13 @@ test('championship API keeps the existing club response shape after the Organiza
   assert.equal(response.status, 200);
   assert.deepEqual(championship.club, organization);
   assert.equal('organization' in championship, false);
+});
+
+test('server-side sessions belong to a user and expire through an indexed timestamp', () => {
+  assert.match(model('User'), /sessions\s+Session\[\]/);
+  assert.match(model('Session'), /userId\s+String/);
+  assert.match(model('Session'), /expiresAt\s+DateTime/);
+  assert.match(model('Session'), /@@index\(\[expiresAt\]\)/);
+  assert.match(authMigration, /CREATE TABLE "Session"/);
+  assert.match(authMigration, /Session_userId_fkey/);
 });

@@ -1,6 +1,6 @@
 # FutLiga
 
-Plataforma em construção para campeonatos de futebol. Esta alteração corresponde à **Etapa 2.1: fundação de identidade e multi-tenancy**, construída sobre a fundação técnica da Etapa 1. Ela prepara usuários, organizações, papéis e relações de tenant no Prisma. O sistema **não está production-ready**; autenticação e autorização efetiva ainda não foram implementadas e serão tratadas nas próximas etapas.
+Plataforma em construção para campeonatos de futebol. A fundação técnica e a identidade/multi-tenancy estão implementadas, assim como login, sessões server-side e autorização básica por organização. O sistema **não está production-ready**; ainda não inclui o painel administrativo nem os fluxos completos do produto.
 
 ## Arquitetura atual
 
@@ -33,11 +33,11 @@ No Windows PowerShell, use `Copy-Item .env.example .env`. Edite `DATABASE_URL` e
 | `DATABASE_URL` | Conexão PostgreSQL usada pela API e pelo Prisma. |
 | `PORT` | Porta HTTP da API; padrão local `3000`. |
 | `NODE_ENV` | Ambiente da API (`development`, `test` ou `production`). |
-| `CORS_ORIGIN` | Lista separada por vírgulas das origens permitidas para API e Socket.IO. Desenvolvimento assume `http://localhost:5173`; produção exige valor explícito. |
+| `CORS_ORIGIN` | Lista separada por vírgulas das origens permitidas para API e Socket.IO. Desenvolvimento assume `http://localhost:5173`; produção exige valor explícito. A API permite credenciais para cookies. |
 | `APP_VERSION` | Valor informativo retornado pelo health check. |
 | `VITE_API_URL` | URL pública da API usada pelo frontend no build do Vite. Não é segredo. |
 
-`JWT_SECRET` não é usado nesta etapa. Não configure credenciais demonstrativas como acesso de produção.
+Não há segredo JWT: a API usa sessões server-side. Em produção, o cookie de sessão recebe `Secure`; em todos os ambientes ele usa `HttpOnly`, `SameSite=Lax` e expira em sete dias. Não configure credenciais demonstrativas como acesso de produção.
 
 ## Prisma e dados de desenvolvimento
 
@@ -58,7 +58,7 @@ npm run db:deploy
 
 `db:seed` cria ou atualiza uma organização fictícia, um campeonato, duas equipes, jogadores, uma fase, uma partida e um usuário Master demonstrativo sem credencial utilizável. O seed falha quando `NODE_ENV=production`.
 
-A migration da Etapa 2.1 renomeia `Club` para `Organization` e converte relações existentes sem apagar registros. Ela recusa dados legados inconsistentes em vez de migrá-los silenciosamente. Não foi executada contra PostgreSQL nesta etapa; revise e faça backup antes de aplicar em um banco existente.
+A migration da Etapa 2.1 renomeia `Club` para `Organization` e converte relações existentes sem apagar registros. A migration de autenticação adiciona a tabela `Session` ligada a `User`. As migrations foram validadas estaticamente, mas não foram aplicadas a um PostgreSQL real nesta etapa; revise e faça backup antes de aplicar em um banco existente.
 
 ## Desenvolvimento, testes e build
 
@@ -78,7 +78,11 @@ O health check `GET /health` verifica a saúde do processo sem consultar o banco
 
 `MASTER_ADMIN` é um papel global armazenado em `User.role`. `CHAMPIONSHIP_ADMIN` fica em `OrganizationMember.role`, sempre associado a uma organização. `OrganizationMember` permite que um usuário participe de várias organizações e impede associações duplicadas. O slug identifica a organização em URLs futuras, mas não concede acesso.
 
-Esta etapa prepara somente o modelo de dados: não implementa login, sessão, middleware ou autorização de endpoints. Conhecer IDs, slugs ou URLs não concede acesso. A autorização efetiva e o isolamento em consultas da API ficam para as etapas seguintes. O modelo não torna o sistema seguro para produção por si só.
+`POST /api/auth/login`, `GET /api/auth/me` e `POST /api/auth/logout` gerenciam sessão server-side. Senhas usam Argon2id; tokens de sessão aleatórios são guardados como SHA-256 no banco e enviados apenas em cookie HttpOnly. O login limita a dez tentativas por IP a cada 15 minutos e responde com erro genérico para credenciais inválidas.
+
+`MASTER_ADMIN` tem acesso global. `CHAMPIONSHIP_ADMIN` depende de associação ativa à organização proprietária do campeonato. `POST /api/matches/:id/status` exige autenticação, carrega a partida, resolve seu campeonato e organização no banco e só então verifica a associação antes de alterar o status. IDs fornecidos pelo cliente não concedem autorização.
+
+As leituras públicas existentes de campeonatos e partidas continuam públicas. O painel administrativo, outras operações de escrita e os fluxos completos do produto ainda não foram implementados. Esta camada é a base da etapa, mas o sistema como um todo ainda não está pronto para produção.
 
 ## Render
 
@@ -86,7 +90,7 @@ O `render.yaml` configura uma API Node, um site estático e um banco PostgreSQL.
 
 O `preDeployCommand` do Render exige um plano que ofereça esse recurso. Confirme a disponibilidade no plano e no workspace antes de aplicar o Blueprint. Em planos sem pre-deploy, aplique `npm run db:deploy` por um job/release command compatível antes de iniciar a nova versão; não substitua isso por `prisma migrate dev` em produção.
 
-Antes de usar um banco existente, faça backup e determine se ele está vazio, se já possui o schema ou se precisa de baseline. A migration da Etapa 2.1 está versionada, mas não foi executada contra PostgreSQL real nesta etapa.
+Antes de usar um banco existente, faça backup e determine se ele está vazio, se já possui o schema ou se precisa de baseline. As migrations estão versionadas, mas não foram executadas contra PostgreSQL real nesta etapa.
 
 ## Dependências
 
@@ -94,4 +98,4 @@ O lockfile desta base mantém `Prisma 6.19.3` e resolve `deepmerge-ts@8.0.2` pel
 
 ## Limites desta etapa
 
-As rotas atuais de campeonatos e partidas foram preservadas. Ainda não há autenticação, autorização efetiva dos endpoints, operação administrativa funcional, relógio de partida, fluxo completo de eventos, moderação, votação, gestão comercial, retenção ou exclusão de dados. O schema prepara o isolamento entre tenants, mas as consultas e políticas efetivas da API ainda precisam ser implementadas e revisadas. Não publique a aplicação para uso administrativo até que as etapas de segurança e produto sejam implementadas e revisadas.
+As rotas públicas atuais de campeonatos e partidas foram preservadas. O endpoint de alteração de status de partida agora exige autenticação e autorização por tenant. Ainda faltam o painel e as operações administrativas restantes, relógio de partida, fluxo completo de eventos, moderação, votação, gestão comercial, retenção e exclusão de dados.

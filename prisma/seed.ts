@@ -28,7 +28,7 @@ async function main() {
         id: 'seed-user-master',
         name: 'Master demonstrativo',
         email: 'master@futliga.example.test',
-        // Deliberately not a password hash. Authentication is outside this stage.
+        // Deliberately not a valid Argon2 hash; this demo account cannot log in.
         passwordHash: 'seed-account-has-no-login-credential',
         role: PlatformRole.MASTER_ADMIN,
       },

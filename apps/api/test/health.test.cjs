@@ -40,7 +40,7 @@ test('GET /health returns process health without querying the database', async (
 });
 
 
-test('POST /api/matches/:id/status stays unavailable until authentication exists', async (context) => {
+test('POST /api/matches/:id/status requires authentication and does not mutate', async (context) => {
   let updateCalls = 0;
   const prisma = { match: { update: async () => { updateCalls += 1; } } };
   const app = createApp(loadConfig({ NODE_ENV: 'test' }), prisma);
@@ -55,6 +55,6 @@ test('POST /api/matches/:id/status stays unavailable until authentication exists
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ status: 'FINISHED' }),
   });
-  assert.equal(response.status, 503);
+  assert.equal(response.status, 401);
   assert.equal(updateCalls, 0);
 });
